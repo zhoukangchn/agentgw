@@ -1,10 +1,11 @@
+import asyncio
 import json
 
 import pytest
 
 from agentgw.domain.agent.contracts import SendMessageRequest
 from agentgw.infrastructure.providers.agent_ws import provider as provider_module
-from agentgw.infrastructure.providers.agent_ws.provider import WebSocketAgentProvider
+from agentgw.infrastructure.providers.agent_ws.provider import WebSocketAgentError, WebSocketAgentProvider
 
 
 class FakeWebSocket:
@@ -46,6 +47,28 @@ class FakeConnectFactory:
         context = FakeConnectionContext(self.websocket)
         self.contexts.append(context)
         return context
+
+
+class BlockingFakeWebSocket:
+    def __init__(self, responses: list[str]):
+        self._responses = responses
+        self.sent_payloads: list[str] = []
+        self.closed = False
+        self.first_recv_started = None
+        self.release_first_recv = None
+        self.recv_calls = 0
+
+    async def send(self, payload: str) -> None:
+        self.sent_payloads.append(payload)
+
+    async def recv(self) -> str:
+        self.recv_calls += 1
+        if self.recv_calls == 1:
+            if self.first_recv_started is not None:
+                self.first_recv_started.set()
+            if self.release_first_recv is not None:
+                await self.release_first_recv.wait()
+        return self._responses.pop(0)
 
 
 @pytest.mark.asyncio
@@ -131,15 +154,113 @@ async def test_send_message_frames_request_and_reuses_connection(monkeypatch) ->
 
 
 @pytest.mark.asyncio
+async def test_send_message_serializes_inflight_requests_on_cached_connection(monkeypatch) -> None:
+    request_one = SendMessageRequest(
+        request_id="req-1",
+        channel_type="wecom",
+        tenant_id="tenant-1",
+        message_id="msg-1",
+        sender_id="user-1",
+        conversation_id="conv-1",
+        content="hello-1",
+    )
+    request_two = SendMessageRequest(
+        request_id="req-2",
+        channel_type="wecom",
+        tenant_id="tenant-1",
+        message_id="msg-2",
+        sender_id="user-1",
+        conversation_id="conv-1",
+        content="hello-2",
+    )
+    websocket = BlockingFakeWebSocket(
+        [
+            json.dumps(
+                {
+                    "type": "send_message_result",
+                    "request_id": "req-1",
+                    "provider_message_id": "agent-1",
+                    "content": "reply-1",
+                }
+            ),
+            json.dumps(
+                {
+                    "type": "send_message_result",
+                    "request_id": "req-2",
+                    "provider_message_id": "agent-2",
+                    "content": "reply-2",
+                }
+            ),
+        ]
+    )
+    websocket.first_recv_started = asyncio.Event()
+    websocket.release_first_recv = asyncio.Event()
+    factory = FakeConnectFactory([])
+    factory.websocket = websocket
+    provider = WebSocketAgentProvider(
+        ws_url="ws://agent",
+        timeout_seconds=7,
+        connect_factory=factory,
+    )
+
+    first_task = asyncio.create_task(provider.send_message(request_one))
+    await websocket.first_recv_started.wait()
+    second_task = asyncio.create_task(provider.send_message(request_two))
+
+    assert len(websocket.sent_payloads) == 1
+
+    websocket.release_first_recv.set()
+    first = await first_task
+    second = await second_task
+
+    assert first.provider_message_id == "agent-1"
+    assert second.provider_message_id == "agent-2"
+    assert [json.loads(payload)["request_id"] for payload in websocket.sent_payloads] == ["req-1", "req-2"]
+
+
+@pytest.mark.asyncio
+async def test_send_message_error_frames_raise_provider_error() -> None:
+    request = SendMessageRequest(
+        request_id="req-1",
+        channel_type="wecom",
+        tenant_id="tenant-1",
+        message_id="msg-1",
+        sender_id="user-1",
+        conversation_id="conv-1",
+        content="hello",
+    )
+    factory = FakeConnectFactory(
+        [
+            json.dumps(
+                {
+                    "type": "send_message_error",
+                    "request_id": "req-1",
+                    "error_code": "agent_timeout",
+                    "error_message": "timed out",
+                }
+            )
+        ]
+    )
+    provider = WebSocketAgentProvider(
+        ws_url="ws://agent",
+        timeout_seconds=7,
+        connect_factory=factory,
+    )
+
+    with pytest.raises(WebSocketAgentError) as exc_info:
+        await provider.send_message(request)
+
+    assert exc_info.value.error_code == "agent_timeout"
+    assert exc_info.value.error_message == "timed out"
+    assert str(exc_info.value) == "agent_timeout: timed out"
+    assert factory.calls == 1
+    assert factory.contexts[0].exit_count == 0
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "response_payload",
     [
-        {
-            "type": "send_message_error",
-            "request_id": "req-1",
-            "error_code": "agent_timeout",
-            "error_message": "timed out",
-        },
         {
             "type": "send_message_result",
             "request_id": "other",
