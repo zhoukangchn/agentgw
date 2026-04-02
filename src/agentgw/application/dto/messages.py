@@ -1,19 +1,3 @@
-from dataclasses import dataclass, field
+from agentgw.domain.agent.contracts import SendMessageRequest, SendMessageResponse
 
-
-@dataclass
-class SendMessageRequest:
-    request_id: str
-    channel_type: str
-    tenant_id: str
-    message_id: str
-    sender_id: str
-    conversation_id: str
-    content: str
-    metadata: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass
-class SendMessageResponse:
-    provider_message_id: str
-    content: str
+__all__ = ["SendMessageRequest", "SendMessageResponse"]

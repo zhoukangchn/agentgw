@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from agentgw.application.dto.messages import SendMessageRequest, SendMessageResponse
+from agentgw.domain.agent.contracts import SendMessageRequest, SendMessageResponse
 
 
 class AgentProvider(Protocol):
