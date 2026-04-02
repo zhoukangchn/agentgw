@@ -1,18 +1,17 @@
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
-from sqlalchemy import delete
 
-from agentgw.infrastructure.persistence.base import SessionLocal, initialize_schema
-from agentgw.infrastructure.persistence.models import DeliveryModel, MessageModel, SyncCursorModel
+from agentgw.infrastructure.persistence.base import engine, initialize_schema
 
 
 @pytest.fixture(autouse=True)
 def clean_persistence_state() -> Iterator[None]:
+    db_path = Path(engine.url.database)
+    engine.dispose()
+    if db_path.exists():
+        db_path.unlink()
     initialize_schema()
-    with SessionLocal() as session:
-        session.execute(delete(MessageModel))
-        session.execute(delete(SyncCursorModel))
-        session.execute(delete(DeliveryModel))
-        session.commit()
     yield
+    engine.dispose()
