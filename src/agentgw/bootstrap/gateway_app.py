@@ -1,12 +1,10 @@
 from fastapi import FastAPI
 
-from agentgw.interfaces.http.controllers.health import router as health_router
+from agentgw.bootstrap.container import build_app
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="agentgw")
-    app.include_router(health_router)
-    return app
+    return build_app()
 
 
 def run() -> None:
