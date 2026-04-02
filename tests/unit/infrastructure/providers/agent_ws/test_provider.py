@@ -1,5 +1,7 @@
 import asyncio
 import json
+import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -258,6 +260,41 @@ async def test_send_message_error_frames_raise_provider_error() -> None:
 
 
 @pytest.mark.asyncio
+async def test_send_message_error_frames_reject_mismatched_request_id() -> None:
+    request = SendMessageRequest(
+        request_id="req-1",
+        channel_type="wecom",
+        tenant_id="tenant-1",
+        message_id="msg-1",
+        sender_id="user-1",
+        conversation_id="conv-1",
+        content="hello",
+    )
+    factory = FakeConnectFactory(
+        [
+            json.dumps(
+                {
+                    "type": "send_message_error",
+                    "request_id": "other",
+                    "error_code": "agent_timeout",
+                    "error_message": "timed out",
+                }
+            )
+        ]
+    )
+    provider = WebSocketAgentProvider(
+        ws_url="ws://agent",
+        timeout_seconds=7,
+        connect_factory=factory,
+    )
+
+    with pytest.raises(ValueError, match="unexpected websocket response request_id"):
+        await provider.send_message(request)
+
+    assert factory.contexts[0].exit_count == 1
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "response_payload",
     [
@@ -291,3 +328,37 @@ async def test_send_message_rejects_invalid_response_frames(response_payload) ->
 
     assert factory.calls == 1
     assert factory.contexts[0].exit_count == 1
+
+
+@pytest.mark.asyncio
+async def test_send_message_uses_default_websockets_connector(monkeypatch) -> None:
+    request = SendMessageRequest(
+        request_id="req-1",
+        channel_type="wecom",
+        tenant_id="tenant-1",
+        message_id="msg-1",
+        sender_id="user-1",
+        conversation_id="conv-1",
+        content="hello",
+    )
+    factory = FakeConnectFactory(
+        [
+            json.dumps(
+                {
+                    "type": "send_message_result",
+                    "request_id": "req-1",
+                    "provider_message_id": "agent-1",
+                    "content": "reply-1",
+                }
+            )
+        ]
+    )
+    monkeypatch.setitem(sys.modules, "websockets", SimpleNamespace(connect=factory))
+
+    provider = WebSocketAgentProvider(ws_url="ws://agent", timeout_seconds=7)
+
+    response = await provider.send_message(request)
+
+    assert response.provider_message_id == "agent-1"
+    assert response.content == "reply-1"
+    assert factory.calls == 1

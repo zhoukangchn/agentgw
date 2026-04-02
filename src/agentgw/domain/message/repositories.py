@@ -6,3 +6,6 @@ from agentgw.domain.message.entities import ChannelMessage
 class MessageRepository(Protocol):
     async def save(self, message: ChannelMessage) -> ChannelMessage:
         raise NotImplementedError
+
+    async def get_by_message_id(self, message_id: str) -> ChannelMessage:
+        raise NotImplementedError

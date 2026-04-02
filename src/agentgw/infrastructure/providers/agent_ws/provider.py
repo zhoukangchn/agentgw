@@ -15,13 +15,13 @@ class WebSocketAgentError(RuntimeError):
         super().__init__(f"{error_code}: {error_message}")
 
 
-def _default_connect() -> Any:
+def _default_connect(*args: Any, **kwargs: Any) -> Any:
     try:
         import websockets
     except ImportError as exc:  # pragma: no cover - exercised only when dependency is missing
         raise RuntimeError("websockets dependency is required for WebSocketAgentProvider") from exc
 
-    return websockets.connect
+    return websockets.connect(*args, **kwargs)
 
 
 class WebSocketAgentProvider:
@@ -88,6 +88,8 @@ class WebSocketAgentProvider:
 
                 response_type = payload.get("type")
                 if response_type == "send_message_error":
+                    if payload.get("request_id") != request.request_id:
+                        raise ValueError("unexpected websocket response request_id")
                     error_code = payload.get("error_code")
                     error_message = payload.get("error_message")
                     if not isinstance(error_code, str) or not isinstance(error_message, str):

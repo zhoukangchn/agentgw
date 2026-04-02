@@ -1,10 +1,28 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
-from agentgw.bootstrap.container import build_app
+from agentgw.bootstrap.container import Container, build_app, build_container
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    container: Container = app.state.container
+    if container.settings.scheduler_enabled:
+        await container.scheduler.start()
+    try:
+        yield
+    finally:
+        if container.settings.scheduler_enabled:
+            await container.scheduler.stop()
 
 
 def create_app() -> FastAPI:
-    return build_app()
+    container = build_container()
+    app = build_app(container)
+    app.router.lifespan_context = lifespan
+    return app
 
 
 def run() -> None:

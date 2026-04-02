@@ -3,10 +3,17 @@ from agentgw.domain.delivery.entities import Delivery
 
 
 class ProcessDeliveryService:
-    def __init__(self, agent_provider, message_repository, delivery_repository):
+    def __init__(
+        self,
+        agent_provider,
+        message_repository,
+        delivery_repository,
+        welink_client=None,
+    ):
         self._agent_provider = agent_provider
         self._message_repository = message_repository
         self._delivery_repository = delivery_repository
+        self._welink_client = welink_client
 
     async def process(self, delivery: Delivery) -> Delivery:
         try:
@@ -23,6 +30,8 @@ class ProcessDeliveryService:
                     content=message.content,
                 )
             )
+            if message.channel_type == "welink" and self._welink_client is not None:
+                await self._welink_client.send_group_message(message.conversation_id, response.content)
             delivery.mark_dispatched()
             delivery.mark_succeeded(response.content)
         except Exception as exc:

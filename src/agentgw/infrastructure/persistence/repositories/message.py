@@ -35,6 +35,18 @@ class SqlAlchemyMessageRepository(MessageRepository):
     def _message_key(message: ChannelMessage) -> str:
         return f"{message.channel_type}:{message.account_id}:{message.message_id}"
 
+    async def get_by_message_id(self, message_id: str) -> ChannelMessage:
+        with self._session_factory() as session:
+            row = (
+                session.query(MessageModel)
+                .filter(MessageModel.message_id == message_id)
+                .order_by(MessageModel.updated_at.desc())
+                .first()
+            )
+            if row is None:
+                raise LookupError(f"missing message: {message_id}")
+            return self._to_entity(row)
+
     @staticmethod
     def _to_entity(row: MessageModel) -> ChannelMessage:
         return ChannelMessage(

@@ -39,3 +39,41 @@ async def test_message_repository_save_persists_and_reloads_message(
 
     assert row.content == "hello"
     assert row.raw_payload == {"seq": 10}
+
+
+@pytest.mark.anyio
+async def test_message_repository_get_by_message_id_returns_latest_row(
+    sqlite_session_factory: sessionmaker,
+) -> None:
+    repo = SqlAlchemyMessageRepository(session_factory=sqlite_session_factory)
+    first = ChannelMessage(
+        message_id="msg-1",
+        channel_type="wecom",
+        account_id="acc-1",
+        conversation_id="conv-1",
+        sender_id="user-1",
+        sender_is_internal=False,
+        content="hello",
+        sent_at=__import__("datetime").datetime.now(),
+        raw_payload={"seq": 10},
+    )
+    second = ChannelMessage(
+        message_id="msg-1",
+        channel_type="welink",
+        account_id="acc-2",
+        conversation_id="conv-2",
+        sender_id="user-2",
+        sender_is_internal=True,
+        content="world",
+        sent_at=__import__("datetime").datetime.now(),
+        raw_payload={"seq": 11},
+    )
+
+    await repo.save(first)
+    await repo.save(second)
+
+    loaded = await repo.get_by_message_id("msg-1")
+
+    assert loaded.channel_type == "welink"
+    assert loaded.account_id == "acc-2"
+    assert loaded.content == "world"

@@ -14,5 +14,6 @@ def sqlite_session_factory(tmp_path, monkeypatch: pytest.MonkeyPatch) -> Iterato
     monkeypatch.setattr("agentgw.infrastructure.persistence.repositories.delivery.initialize_schema", lambda: None)
     monkeypatch.setattr("agentgw.infrastructure.persistence.repositories.message.initialize_schema", lambda: None)
     monkeypatch.setattr("agentgw.infrastructure.persistence.repositories.sync.initialize_schema", lambda: None)
+    monkeypatch.setattr("agentgw.infrastructure.persistence.repositories.contact.initialize_schema", lambda: None)
     yield sessionmaker(bind=engine, autoflush=False, autocommit=False)
     engine.dispose()

@@ -47,3 +47,16 @@ class SyncCursorModel(Base):
     scope: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     cursor_payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+
+
+class ContactModel(Base):
+    __tablename__ = "channel_contacts"
+
+    contact_key: Mapped[str] = mapped_column(String(192), primary_key=True)
+    contact_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    channel_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    account_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_internal: Mapped[bool] = mapped_column(nullable=False)
+    raw_labels: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
