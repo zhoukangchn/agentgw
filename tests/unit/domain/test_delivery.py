@@ -40,3 +40,12 @@ def test_delivery_rejects_invalid_constructor_state() -> None:
             agent_endpoint_id="agent-1",
             status=DeliveryStatus.RECEIVED,
         )
+
+
+def test_delivery_rejects_failed_state_without_endpoint() -> None:
+    with pytest.raises(ValueError, match="invalid delivery state"):
+        Delivery(
+            message_id="msg-1",
+            status=DeliveryStatus.FAILED,
+            last_error="boom",
+        )

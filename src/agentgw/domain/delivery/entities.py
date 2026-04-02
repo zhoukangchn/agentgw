@@ -61,7 +61,7 @@ class Delivery:
             return
 
         if self.status in {DeliveryStatus.FAILED, DeliveryStatus.DEAD}:
-            if self.last_error is None or self.reply_content is not None:
+            if self.agent_endpoint_id is None or self.last_error is None or self.reply_content is not None:
                 raise ValueError("invalid delivery state")
             return
 
