@@ -1,15 +1,17 @@
 import pytest
 from sqlalchemy import select
+from sqlalchemy.orm import sessionmaker
 
 from agentgw.domain.message.entities import ChannelMessage
-from agentgw.infrastructure.persistence.base import SessionLocal
 from agentgw.infrastructure.persistence.models import MessageModel
 from agentgw.infrastructure.persistence.repositories.message import SqlAlchemyMessageRepository
 
 
 @pytest.mark.anyio
-async def test_message_repository_save_persists_and_reloads_message() -> None:
-    repo = SqlAlchemyMessageRepository()
+async def test_message_repository_save_persists_and_reloads_message(
+    sqlite_session_factory: sessionmaker,
+) -> None:
+    repo = SqlAlchemyMessageRepository(session_factory=sqlite_session_factory)
     message = ChannelMessage(
         message_id="msg-1",
         channel_type="wecom",
@@ -26,7 +28,7 @@ async def test_message_repository_save_persists_and_reloads_message() -> None:
 
     assert saved.message_id == "msg-1"
 
-    with SessionLocal() as session:
+    with sqlite_session_factory() as session:
         row = session.execute(
             select(MessageModel).where(
                 MessageModel.message_id == "msg-1",

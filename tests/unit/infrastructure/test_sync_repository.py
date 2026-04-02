@@ -1,11 +1,14 @@
 import pytest
+from sqlalchemy.orm import sessionmaker
 
 from agentgw.infrastructure.persistence.repositories.sync import SqlAlchemySyncRepository
 
 
 @pytest.mark.anyio
-async def test_sync_repository_upsert_and_get_for_scope_round_trips_cursor() -> None:
-    repo = SqlAlchemySyncRepository()
+async def test_sync_repository_upsert_and_get_for_scope_round_trips_cursor(
+    sqlite_session_factory: sessionmaker,
+) -> None:
+    repo = SqlAlchemySyncRepository(session_factory=sqlite_session_factory)
 
     saved = await repo.upsert("acc-1", "wecom", "messages", {"seq": 10})
     loaded = await repo.get_for_scope("acc-1", "wecom", "messages")
@@ -20,8 +23,10 @@ async def test_sync_repository_upsert_and_get_for_scope_round_trips_cursor() -> 
 
 
 @pytest.mark.anyio
-async def test_sync_repository_separates_cursors_by_channel_type() -> None:
-    repo = SqlAlchemySyncRepository()
+async def test_sync_repository_separates_cursors_by_channel_type(
+    sqlite_session_factory: sessionmaker,
+) -> None:
+    repo = SqlAlchemySyncRepository(session_factory=sqlite_session_factory)
 
     await repo.upsert("acc-1", "wecom", "messages", {"seq": 10})
     await repo.upsert("acc-1", "feishu", "messages", {"cursor": "abc"})

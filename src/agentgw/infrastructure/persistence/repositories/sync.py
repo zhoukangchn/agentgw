@@ -5,15 +5,13 @@ from sqlalchemy import select
 
 from agentgw.domain.sync.entities import SyncCursor
 from agentgw.domain.sync.repositories import SyncRepository
-from agentgw.infrastructure.persistence.base import SessionLocal
+from agentgw.infrastructure.persistence.base import SessionLocal, initialize_schema
 from agentgw.infrastructure.persistence.models import SyncCursorModel
 
 
 class SqlAlchemySyncRepository(SyncRepository):
     def __init__(self, session_factory=SessionLocal):
         self._session_factory = session_factory
-        from agentgw.infrastructure.persistence.base import initialize_schema
-
         initialize_schema()
 
     async def get_for_scope(self, account_id: str, channel_type: str, scope: str) -> SyncCursor | None:

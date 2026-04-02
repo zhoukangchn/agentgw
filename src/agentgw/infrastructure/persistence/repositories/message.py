@@ -2,15 +2,13 @@ from datetime import UTC, datetime
 
 from agentgw.domain.message.entities import ChannelMessage
 from agentgw.domain.message.repositories import MessageRepository
-from agentgw.infrastructure.persistence.base import SessionLocal
+from agentgw.infrastructure.persistence.base import SessionLocal, initialize_schema
 from agentgw.infrastructure.persistence.models import MessageModel
 
 
 class SqlAlchemyMessageRepository(MessageRepository):
     def __init__(self, session_factory=SessionLocal):
         self._session_factory = session_factory
-        from agentgw.infrastructure.persistence.base import initialize_schema
-
         initialize_schema()
 
     async def save(self, message: ChannelMessage) -> ChannelMessage:
