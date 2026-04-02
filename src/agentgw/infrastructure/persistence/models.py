@@ -21,10 +21,27 @@ class DeliveryModel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
 
 
+class MessageModel(Base):
+    __tablename__ = "channel_messages"
+
+    message_key: Mapped[str] = mapped_column(String(192), primary_key=True)
+    message_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    channel_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    account_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    conversation_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    sender_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    sender_is_internal: Mapped[bool] = mapped_column(nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+
+
 class SyncCursorModel(Base):
     __tablename__ = "sync_cursors"
 
-    cursor_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    cursor_id: Mapped[str] = mapped_column(String(192), primary_key=True)
     channel_type: Mapped[str] = mapped_column(String(32), nullable=False)
     account_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     scope: Mapped[str] = mapped_column(String(64), nullable=False, index=True)

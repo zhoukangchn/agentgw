@@ -16,11 +16,12 @@ class SqlAlchemySyncRepository(SyncRepository):
 
         initialize_schema()
 
-    async def get_for_scope(self, account_id: str, scope: str) -> SyncCursor | None:
+    async def get_for_scope(self, account_id: str, channel_type: str, scope: str) -> SyncCursor | None:
         with self._session_factory() as session:
             row = (
                 session.execute(
                     select(SyncCursorModel).where(
+                        SyncCursorModel.channel_type == channel_type,
                         SyncCursorModel.account_id == account_id,
                         SyncCursorModel.scope == scope,
                     )
@@ -30,11 +31,12 @@ class SqlAlchemySyncRepository(SyncRepository):
             )
             return self._to_entity(row) if row is not None else None
 
-    async def upsert(self, account_id: str, scope: str, payload: dict[str, Any]) -> SyncCursor:
+    async def upsert(self, account_id: str, channel_type: str, scope: str, payload: dict[str, Any]) -> SyncCursor:
         with self._session_factory() as session:
             row = (
                 session.execute(
                     select(SyncCursorModel).where(
+                        SyncCursorModel.channel_type == channel_type,
                         SyncCursorModel.account_id == account_id,
                         SyncCursorModel.scope == scope,
                     )
@@ -44,8 +46,8 @@ class SqlAlchemySyncRepository(SyncRepository):
             )
             if row is None:
                 row = SyncCursorModel(
-                    cursor_id=self._cursor_id(account_id, scope),
-                    channel_type="unknown",
+                    cursor_id=self._cursor_id(account_id, channel_type, scope),
+                    channel_type=channel_type,
                     account_id=account_id,
                     scope=scope,
                 )
@@ -56,8 +58,8 @@ class SqlAlchemySyncRepository(SyncRepository):
             return self._to_entity(row)
 
     @staticmethod
-    def _cursor_id(account_id: str, scope: str) -> str:
-        return f"{account_id}:{scope}"
+    def _cursor_id(account_id: str, channel_type: str, scope: str) -> str:
+        return f"{channel_type}:{account_id}:{scope}"
 
     @staticmethod
     def _to_entity(row: SyncCursorModel) -> SyncCursor:

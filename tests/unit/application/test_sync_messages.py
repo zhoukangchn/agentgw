@@ -36,19 +36,25 @@ class FakeCursorRepository:
     def __init__(self):
         self.saved_cursor: SyncCursor | None = None
 
-    async def get_for_scope(self, account_id: str, scope: str) -> SyncCursor | None:
+    async def get_for_scope(self, account_id: str, channel_type: str, scope: str) -> SyncCursor | None:
         return SyncCursor(
-            cursor_id=f"{account_id}:{scope}",
-            channel_type="wecom",
+            cursor_id=f"{channel_type}:{account_id}:{scope}",
+            channel_type=channel_type,
             account_id=account_id,
             scope=scope,
             cursor_payload={"seq": 0},
         )
 
-    async def upsert(self, account_id: str, scope: str, payload: dict[str, Any]) -> SyncCursor:
+    async def upsert(
+        self,
+        account_id: str,
+        channel_type: str,
+        scope: str,
+        payload: dict[str, Any],
+    ) -> SyncCursor:
         self.saved_cursor = SyncCursor(
-            cursor_id=f"{account_id}:{scope}",
-            channel_type="wecom",
+            cursor_id=f"{channel_type}:{account_id}:{scope}",
+            channel_type=channel_type,
             account_id=account_id,
             scope=scope,
             cursor_payload=payload,
@@ -97,7 +103,7 @@ async def test_sync_messages_persists_message_and_updates_cursor() -> None:
         delivery_repository=delivery_repository,
     )
 
-    result = await service.sync_account("acc-1")
+    result = await service.sync_account("acc-1", "wecom")
 
     assert result.synced_count == 1
     assert result.next_cursor == {"seq": 10}
@@ -119,7 +125,7 @@ async def test_sync_messages_reuses_delivery_identity_for_retries() -> None:
         delivery_repository=delivery_repository,
     )
 
-    await service.sync_account("acc-1")
-    await service.sync_account("acc-1")
+    await service.sync_account("acc-1", "wecom")
+    await service.sync_account("acc-1", "wecom")
 
     assert len(delivery_repository.saved_deliveries) == 1
