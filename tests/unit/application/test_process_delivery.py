@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 
 from agentgw.application.dto.messages import SendMessageResponse
@@ -21,7 +23,7 @@ class FakeMessageRepository:
             sender_id="user-1",
             sender_is_internal=False,
             content="hello",
-            sent_at=__import__("datetime").datetime.now(),
+            sent_at=datetime.now(),
             raw_payload={},
         )
 
@@ -35,11 +37,20 @@ class FakeDeliveryRepository:
         return delivery
 
 
+class FailingMessageRepository:
+    async def get_by_message_id(self, message_id: str) -> ChannelMessage:
+        raise LookupError(f"missing message: {message_id}")
+
+
+class FailingAgentProvider:
+    async def send_message(self, request):
+        raise RuntimeError("agent unavailable")
+
+
 @pytest.mark.asyncio
 async def test_process_delivery_marks_success() -> None:
     delivery = Delivery.create(message_id="msg-1")
     delivery.mark_routed("agent-1")
-    delivery.status = DeliveryStatus.DISPATCHED
 
     delivery_repository = FakeDeliveryRepository()
     service = ProcessDeliveryService(
@@ -52,4 +63,42 @@ async def test_process_delivery_marks_success() -> None:
 
     assert updated.status is DeliveryStatus.SUCCEEDED
     assert updated.reply_content == "reply"
+    assert delivery_repository.saved_delivery is updated
+
+
+@pytest.mark.asyncio
+async def test_process_delivery_marks_failed_when_message_lookup_fails() -> None:
+    delivery = Delivery.create(message_id="msg-1")
+    delivery.mark_routed("agent-1")
+
+    delivery_repository = FakeDeliveryRepository()
+    service = ProcessDeliveryService(
+        agent_provider=FakeAgentProvider(),
+        message_repository=FailingMessageRepository(),
+        delivery_repository=delivery_repository,
+    )
+
+    updated = await service.process(delivery)
+
+    assert updated.status is DeliveryStatus.FAILED
+    assert updated.last_error == "missing message: msg-1"
+    assert delivery_repository.saved_delivery is updated
+
+
+@pytest.mark.asyncio
+async def test_process_delivery_marks_failed_when_provider_fails() -> None:
+    delivery = Delivery.create(message_id="msg-1")
+    delivery.mark_routed("agent-1")
+
+    delivery_repository = FakeDeliveryRepository()
+    service = ProcessDeliveryService(
+        agent_provider=FailingAgentProvider(),
+        message_repository=FakeMessageRepository(),
+        delivery_repository=delivery_repository,
+    )
+
+    updated = await service.process(delivery)
+
+    assert updated.status is DeliveryStatus.FAILED
+    assert updated.last_error == "agent unavailable"
     assert delivery_repository.saved_delivery is updated
