@@ -59,7 +59,7 @@ class FakeDeliveryRepository:
         return delivery
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_sync_messages_persists_message_and_updates_cursor() -> None:
     cursor_repository = FakeCursorRepository()
     message_repository = FakeMessageRepository()
