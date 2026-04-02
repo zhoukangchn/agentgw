@@ -8,5 +8,4 @@ class SqlAlchemyMessageRepository(MessageRepository):
         self._session_factory = session_factory
 
     async def save(self, message: ChannelMessage) -> ChannelMessage:
-        with self._session_factory():
-            return message
+        raise NotImplementedError("SqlAlchemyMessageRepository is not implemented in Task 4")

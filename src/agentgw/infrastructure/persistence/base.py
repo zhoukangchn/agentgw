@@ -8,3 +8,9 @@ class Base(DeclarativeBase):
 
 engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+
+def initialize_schema() -> None:
+    from agentgw.infrastructure.persistence.models import DeliveryModel  # noqa: F401
+
+    Base.metadata.create_all(bind=engine)

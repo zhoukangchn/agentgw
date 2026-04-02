@@ -2,13 +2,14 @@ from uuid import uuid4
 
 from agentgw.domain.delivery.entities import Delivery, DeliveryStatus
 from agentgw.domain.delivery.repositories import DeliveryRepository
-from agentgw.infrastructure.persistence.base import SessionLocal
+from agentgw.infrastructure.persistence.base import SessionLocal, initialize_schema
 from agentgw.infrastructure.persistence.models import DeliveryModel
 
 
 class SqlAlchemyDeliveryRepository(DeliveryRepository):
     def __init__(self, session_factory=SessionLocal):
         self._session_factory = session_factory
+        initialize_schema()
 
     async def save(self, delivery: Delivery) -> Delivery:
         with self._session_factory() as session:

@@ -8,5 +8,4 @@ class SqlAlchemyAgentRepository(AgentRepository):
         self._session_factory = session_factory
 
     async def save(self, agent_endpoint: AgentEndpoint) -> AgentEndpoint:
-        with self._session_factory():
-            return agent_endpoint
+        raise NotImplementedError("SqlAlchemyAgentRepository is not implemented in Task 4")

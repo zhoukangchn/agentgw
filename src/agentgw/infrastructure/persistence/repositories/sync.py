@@ -8,5 +8,4 @@ class SqlAlchemySyncRepository(SyncRepository):
         self._session_factory = session_factory
 
     async def save(self, sync_cursor: SyncCursor) -> SyncCursor:
-        with self._session_factory():
-            return sync_cursor
+        raise NotImplementedError("SqlAlchemySyncRepository is not implemented in Task 4")

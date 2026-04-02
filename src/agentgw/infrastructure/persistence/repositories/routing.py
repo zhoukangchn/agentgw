@@ -8,5 +8,4 @@ class SqlAlchemyRoutingRepository(RoutingRepository):
         self._session_factory = session_factory
 
     async def save(self, route_rule: RouteRule) -> RouteRule:
-        with self._session_factory():
-            return route_rule
+        raise NotImplementedError("SqlAlchemyRoutingRepository is not implemented in Task 4")

@@ -8,5 +8,4 @@ class SqlAlchemyChannelRepository(ChannelRepository):
         self._session_factory = session_factory
 
     async def save(self, channel: ChannelAccount) -> ChannelAccount:
-        with self._session_factory():
-            return channel
+        raise NotImplementedError("SqlAlchemyChannelRepository is not implemented in Task 4")

@@ -8,5 +8,4 @@ class SqlAlchemyContactRepository(ContactRepository):
         self._session_factory = session_factory
 
     async def save(self, contact: ChannelContact) -> ChannelContact:
-        with self._session_factory():
-            return contact
+        raise NotImplementedError("SqlAlchemyContactRepository is not implemented in Task 4")
