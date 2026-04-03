@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from agentgw.application.services.process_delivery import ProcessDeliveryService
 from agentgw.application.services.sync_contacts import SyncContactsService
 from agentgw.application.services.sync_messages import SyncMessagesService
 from agentgw.domain.delivery.repositories import DeliveryRepository
+from agentgw.infrastructure.workers.dispatcher import DeliveryDispatcher
 
 
 @dataclass(frozen=True)
@@ -55,11 +55,12 @@ def build_sync_contacts_job(
 
 def build_process_deliveries_job(
     delivery_repository: DeliveryRepository,
-    process_service: ProcessDeliveryService,
+    delivery_dispatcher: DeliveryDispatcher,
 ):
     async def job() -> None:
         deliveries = await delivery_repository.list_pending()
         for delivery in deliveries:
-            await process_service.process(delivery)
+            if delivery.delivery_id is not None:
+                await delivery_dispatcher.enqueue(delivery.delivery_id)
 
     return job

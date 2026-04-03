@@ -23,6 +23,7 @@ from agentgw.infrastructure.workers.jobs import (
     build_sync_messages_job,
     parse_targets,
 )
+from agentgw.infrastructure.workers.dispatcher import DeliveryDispatcher
 from agentgw.infrastructure.workers.scheduler import JobDefinition, Scheduler
 from agentgw.interfaces.http.controllers.admin_sync import router as admin_sync_router
 from agentgw.interfaces.http.controllers.health import router as health_router
@@ -32,6 +33,7 @@ from agentgw.interfaces.http.controllers.health import router as health_router
 class Container:
     settings: Settings
     scheduler: Scheduler
+    delivery_dispatcher: DeliveryDispatcher
     sync_message_services: dict[str, SyncMessagesService]
     sync_contact_services: dict[str, SyncContactsService]
 
@@ -79,11 +81,6 @@ def build_container(settings: Settings | None = None) -> Container:
     )
     agent_provider = WebSocketAgentProvider(settings.agent_base_url)
     welink_client = WeLinkClient()
-
-    sync_message_services = {
-        "wecom": SyncMessagesService(wecom_client, sync_repository, message_repository, delivery_repository),
-        "feishu": SyncMessagesService(feishu_client, sync_repository, message_repository, delivery_repository),
-    }
     sync_contact_services = {
         "wecom": SyncContactsService(wecom_client, sync_repository, contact_repository),
         "feishu": SyncContactsService(feishu_client, sync_repository, contact_repository),
@@ -94,6 +91,11 @@ def build_container(settings: Settings | None = None) -> Container:
         delivery_repository=delivery_repository,
         welink_client=welink_client,
     )
+    delivery_dispatcher = DeliveryDispatcher(delivery_repository=delivery_repository, process_service=process_delivery_service)
+    sync_message_services = {
+        "wecom": SyncMessagesService(wecom_client, sync_repository, message_repository, delivery_repository, delivery_dispatcher),
+        "feishu": SyncMessagesService(feishu_client, sync_repository, message_repository, delivery_repository, delivery_dispatcher),
+    }
 
     message_targets = parse_targets(settings.message_sync_targets)
     contact_targets = parse_targets(settings.contact_sync_targets)
@@ -112,13 +114,14 @@ def build_container(settings: Settings | None = None) -> Container:
             JobDefinition(
                 name="process-deliveries",
                 interval_seconds=max(1, settings.message_sync_interval_seconds),
-                callback=build_process_deliveries_job(delivery_repository, process_delivery_service),
+                callback=build_process_deliveries_job(delivery_repository, delivery_dispatcher),
             ),
         ]
     )
     return Container(
         settings=settings,
         scheduler=scheduler,
+        delivery_dispatcher=delivery_dispatcher,
         sync_message_services=sync_message_services,
         sync_contact_services=sync_contact_services,
     )

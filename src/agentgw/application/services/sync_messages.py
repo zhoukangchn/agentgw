@@ -19,6 +19,11 @@ class ChannelClient(Protocol):
         raise NotImplementedError
 
 
+class DeliveryDispatcher(Protocol):
+    async def enqueue(self, delivery_id: str) -> None:
+        raise NotImplementedError
+
+
 class SyncMessagesService:
     def __init__(
         self,
@@ -26,11 +31,13 @@ class SyncMessagesService:
         cursor_repository: SyncRepository,
         message_repository: MessageRepository,
         delivery_repository: DeliveryRepository,
+        delivery_dispatcher: DeliveryDispatcher,
     ):
         self._channel_client = channel_client
         self._cursor_repository = cursor_repository
         self._message_repository = message_repository
         self._delivery_repository = delivery_repository
+        self._delivery_dispatcher = delivery_dispatcher
 
     async def sync_account(self, account_id: str, channel_type: str) -> SyncMessagesResult:
         cursor = await self._cursor_repository.get_for_scope(account_id, channel_type, "messages")
@@ -39,7 +46,9 @@ class SyncMessagesService:
 
         for message in messages:
             await self._message_repository.save(message)
-            await self._delivery_repository.save(self._build_delivery(account_id, channel_type, message))
+            delivery = await self._delivery_repository.save(self._build_delivery(account_id, channel_type, message))
+            if delivery.delivery_id is not None:
+                await self._delivery_dispatcher.enqueue(delivery.delivery_id)
 
         await self._cursor_repository.upsert(account_id, channel_type, "messages", next_cursor)
         return SyncMessagesResult(synced_count=len(messages), next_cursor=next_cursor)

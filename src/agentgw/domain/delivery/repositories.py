@@ -7,6 +7,9 @@ class DeliveryRepository(Protocol):
     async def save(self, delivery: Delivery) -> Delivery:
         raise NotImplementedError
 
+    async def get_by_id(self, delivery_id: str) -> Delivery:
+        raise NotImplementedError
+
     async def list_pending(self, limit: int = 100) -> list[Delivery]:
         """Return non-terminal deliveries awaiting or in-flight processing.
 

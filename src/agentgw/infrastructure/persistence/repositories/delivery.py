@@ -43,6 +43,23 @@ class SqlAlchemyDeliveryRepository(DeliveryRepository):
                 updated_at=row.updated_at,
             )
 
+    async def get_by_id(self, delivery_id: str) -> Delivery:
+        with self._session_factory() as session:
+            row = session.get(DeliveryModel, delivery_id)
+            if row is None:
+                raise LookupError(f"missing delivery: {delivery_id}")
+            return Delivery(
+                delivery_id=row.delivery_id,
+                message_id=row.message_id,
+                agent_endpoint_id=row.agent_endpoint_id,
+                status=DeliveryStatus(row.status),
+                attempt_count=row.attempt_count,
+                last_error=row.last_error,
+                reply_content=row.reply_content,
+                created_at=row.created_at,
+                updated_at=row.updated_at,
+            )
+
     async def list_pending(self, limit: int = 100) -> list[Delivery]:
         with self._session_factory() as session:
             rows = (

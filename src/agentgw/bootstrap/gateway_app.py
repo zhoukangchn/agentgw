@@ -9,6 +9,7 @@ from agentgw.bootstrap.container import Container, build_app, build_container
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     container: Container = app.state.container
+    await container.delivery_dispatcher.start()
     if container.settings.scheduler_enabled:
         await container.scheduler.start()
     try:
@@ -16,6 +17,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         if container.settings.scheduler_enabled:
             await container.scheduler.stop()
+        await container.delivery_dispatcher.stop()
 
 
 def create_app() -> FastAPI:

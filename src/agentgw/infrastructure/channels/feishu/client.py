@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Any
 
@@ -107,6 +108,7 @@ class FeishuClient:
     def _to_message(account_id: str, item: dict[str, Any]) -> ChannelMessage:
         sender = item.get("sender", {})
         body = item.get("body", {})
+        message_type = item.get("message_type") or body.get("msg_type") or "text"
         create_time = item.get("create_time")
         sent_at = datetime.fromtimestamp(int(create_time) / 1000, UTC) if create_time else datetime.now(UTC)
         return ChannelMessage(
@@ -116,10 +118,100 @@ class FeishuClient:
             conversation_id=str(item.get("chat_id") or item.get("conversation_id") or ""),
             sender_id=str(sender.get("id") or sender.get("sender_id") or ""),
             sender_is_internal=True,
-            content=str(body.get("content") or item.get("body", "")),
+            content=FeishuClient._extract_text_content(str(message_type), body.get("content") or item.get("body", "")),
             sent_at=sent_at,
             raw_payload=item,
         )
+
+    @staticmethod
+    def _extract_text_content(message_type: str, raw_content: Any) -> str:
+        payload = FeishuClient._normalize_content_payload(raw_content)
+
+        if message_type == "text":
+            return FeishuClient._pick_string(payload, "text") or FeishuClient._stringify_payload(payload)
+        if message_type == "post":
+            return FeishuClient._extract_post_content(payload)
+        if message_type == "image":
+            return f"[image] {FeishuClient._pick_string(payload, 'image_key') or 'image'}"
+        if message_type == "file":
+            return f"[file] {FeishuClient._pick_string(payload, 'file_name', 'file_key') or 'file'}"
+        if message_type == "audio":
+            return f"[audio] {FeishuClient._pick_string(payload, 'file_key') or 'audio'}"
+        if message_type == "media":
+            return f"[media] {FeishuClient._pick_string(payload, 'file_name', 'file_key') or 'media'}"
+        if message_type == "sticker":
+            return f"[sticker] {FeishuClient._pick_string(payload, 'file_key', 'emoji_type') or 'sticker'}"
+        if message_type == "share_chat":
+            return f"[share_chat] {FeishuClient._pick_string(payload, 'chat_name', 'chat_id') or 'chat'}"
+        if message_type == "share_user":
+            return f"[share_user] {FeishuClient._pick_string(payload, 'user_name', 'user_id') or 'user'}"
+        if message_type == "location":
+            name = FeishuClient._pick_string(payload, "name", "title")
+            address = FeishuClient._pick_string(payload, "address")
+            joined = " ".join(part for part in (name, address) if part)
+            return f"[location] {joined or 'location'}"
+        if message_type == "system":
+            return f"[system] {FeishuClient._pick_string(payload, 'template', 'text') or FeishuClient._stringify_payload(payload)}"
+
+        text = FeishuClient._pick_string(payload, "text")
+        if text:
+            return text
+        return FeishuClient._stringify_payload(payload)
+
+    @staticmethod
+    def _normalize_content_payload(raw_content: Any) -> Any:
+        if isinstance(raw_content, str):
+            try:
+                return json.loads(raw_content)
+            except json.JSONDecodeError:
+                return raw_content
+        return raw_content
+
+    @staticmethod
+    def _pick_string(payload: Any, *keys: str) -> str | None:
+        if not isinstance(payload, dict):
+            return None
+        for key in keys:
+            value = payload.get(key)
+            if isinstance(value, str) and value:
+                return value
+        return None
+
+    @staticmethod
+    def _extract_post_content(payload: Any) -> str:
+        if not isinstance(payload, dict) or not payload:
+            return FeishuClient._stringify_payload(payload)
+
+        locale_payload = next((value for value in payload.values() if isinstance(value, dict)), None)
+        if not isinstance(locale_payload, dict):
+            return FeishuClient._stringify_payload(payload)
+
+        title = locale_payload.get("title")
+        lines: list[str] = []
+        contents = locale_payload.get("content", [])
+        if isinstance(contents, list):
+            for paragraph in contents:
+                if not isinstance(paragraph, list):
+                    continue
+                segments: list[str] = []
+                for block in paragraph:
+                    if isinstance(block, dict):
+                        text = block.get("text")
+                        if isinstance(text, str) and text:
+                            segments.append(text)
+                if segments:
+                    lines.append(" ".join(segments))
+
+        parts = [part for part in [title, *lines] if isinstance(part, str) and part]
+        return "\n".join(parts) if parts else FeishuClient._stringify_payload(payload)
+
+    @staticmethod
+    def _stringify_payload(payload: Any) -> str:
+        if isinstance(payload, str):
+            return payload
+        if payload is None:
+            return ""
+        return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
     @staticmethod
     def _to_contact(account_id: str, item: dict[str, Any]) -> ChannelContact:

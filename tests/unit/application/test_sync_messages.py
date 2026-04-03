@@ -91,16 +91,26 @@ class FakeIdempotentDeliveryRepository:
         return delivery
 
 
+class FakeDeliveryDispatcher:
+    def __init__(self):
+        self.enqueued_delivery_ids: list[str] = []
+
+    async def enqueue(self, delivery_id: str) -> None:
+        self.enqueued_delivery_ids.append(delivery_id)
+
+
 @pytest.mark.asyncio
 async def test_sync_messages_persists_message_and_updates_cursor() -> None:
     cursor_repository = FakeCursorRepository()
     message_repository = FakeMessageRepository()
     delivery_repository = FakeDeliveryRepository()
+    dispatcher = FakeDeliveryDispatcher()
     service = SyncMessagesService(
         channel_client=FakeChannelClient(),
         cursor_repository=cursor_repository,
         message_repository=message_repository,
         delivery_repository=delivery_repository,
+        delivery_dispatcher=dispatcher,
     )
 
     result = await service.sync_account("acc-1", "wecom")
@@ -111,6 +121,7 @@ async def test_sync_messages_persists_message_and_updates_cursor() -> None:
     assert cursor_repository.saved_cursor.cursor_payload == {"seq": 10}
     assert len(message_repository.saved_messages) == 1
     assert len(delivery_repository.saved_deliveries) == 1
+    assert dispatcher.enqueued_delivery_ids == ["wecom:acc-1:msg-1"]
 
 
 @pytest.mark.asyncio
@@ -118,14 +129,17 @@ async def test_sync_messages_reuses_delivery_identity_for_retries() -> None:
     cursor_repository = FakeCursorRepository()
     message_repository = FakeMessageRepository()
     delivery_repository = FakeIdempotentDeliveryRepository()
+    dispatcher = FakeDeliveryDispatcher()
     service = SyncMessagesService(
         channel_client=FakeChannelClient(),
         cursor_repository=cursor_repository,
         message_repository=message_repository,
         delivery_repository=delivery_repository,
+        delivery_dispatcher=dispatcher,
     )
 
     await service.sync_account("acc-1", "wecom")
     await service.sync_account("acc-1", "wecom")
 
     assert len(delivery_repository.saved_deliveries) == 1
+    assert dispatcher.enqueued_delivery_ids == ["wecom:acc-1:msg-1", "wecom:acc-1:msg-1"]
