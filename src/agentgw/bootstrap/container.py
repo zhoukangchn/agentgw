@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from agentgw.adapters.agent.sdk_session import SdkSessionTransport
 from agentgw.adapters.agent.ws_rpc import WsRpcTransport
 from agentgw.adapters.egress.dispatcher import EgressDispatcher
+from agentgw.adapters.egress.welink import WeLinkHttpService, WeLinkMockService
 from agentgw.application.orchestration.runtime import RuntimeOrchestrator
 from agentgw.application.routing.channel_router import ChannelRouter
 from agentgw.domain.agent.entities import AgentEndpoint, AgentTransportType
@@ -15,18 +16,6 @@ from agentgw.infrastructure.config.settings import Settings
 from agentgw.infrastructure.persistence.base import configure_database
 from agentgw.infrastructure.persistence.repositories import AgentEndpointRepository, ChannelRepository, ConversationRepository, MessageRepository
 from agentgw.interfaces.http.routes import router
-
-
-class WeLinkMockService:
-    def __init__(self) -> None:
-        self.group_messages: list[dict[str, str]] = []
-        self.private_messages: list[dict[str, str]] = []
-
-    async def send_group_message(self, group_id: str, content: str) -> None:
-        self.group_messages.append({"group_id": group_id, "content": content})
-
-    async def send_private_message(self, conversation_id: str, content: str) -> None:
-        self.private_messages.append({"conversation_id": conversation_id, "content": content})
 
 
 class TransportRegistry:
@@ -47,8 +36,25 @@ class Container:
     endpoint_repository: AgentEndpointRepository
     conversation_repository: ConversationRepository
     message_repository: MessageRepository
-    welink_service: WeLinkMockService
+    welink_service: object
     runtime: RuntimeOrchestrator
+
+
+def build_welink_service(settings: Settings):
+    if settings.welink_adapter_mode == "mock":
+        return WeLinkMockService()
+
+    if settings.welink_adapter_mode == "http":
+        if not settings.welink_base_url or not settings.welink_access_token:
+            raise RuntimeError("welink_base_url and welink_access_token are required when welink_adapter_mode=http")
+        return WeLinkHttpService(
+            base_url=settings.welink_base_url,
+            access_token=settings.welink_access_token,
+            group_message_path=settings.welink_group_message_path,
+            private_message_path=settings.welink_private_message_path,
+        )
+
+    raise RuntimeError(f"unsupported welink_adapter_mode: {settings.welink_adapter_mode}")
 
 
 def seed_defaults(channel_repository: ChannelRepository, endpoint_repository: AgentEndpointRepository, settings: Settings) -> None:
@@ -110,7 +116,7 @@ def build_container(settings: Settings | None = None) -> Container:
     conversation_repository = ConversationRepository()
     message_repository = MessageRepository()
     seed_defaults(channel_repository, endpoint_repository, settings)
-    welink_service = WeLinkMockService()
+    welink_service = build_welink_service(settings)
     transport_registry = TransportRegistry(
         {
             AgentTransportType.WS_RPC.value: WsRpcTransport(),
