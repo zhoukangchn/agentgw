@@ -85,7 +85,7 @@ async def test_relay_bridge_emits_normalized_sse_events() -> None:
         ("debug", {"step": "config_sent", "project_home": "/tmp/project"}),
         ("agent_call", {"agent_name": "assistant", "is_start": True}),
         ("agent_text", {"content": "hello from agent"}),
-        ("tool", {"tool_name": "search", "is_start": False, "result_summary": "ok"}),
+        ("tool_execution", {"tool_name": "search", "is_start": False, "result_summary": "ok"}),
         ("debug", {"step": "message_sent", "message": "hello"}),
         ("done", {"status": "completed"}),
     ]

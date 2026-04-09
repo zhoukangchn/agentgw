@@ -115,7 +115,7 @@ class RelaySdkBridge:
             logger.info("callback TOOL_EXECUTION raw=%r", event)
             logger.info("callback TOOL_EXECUTION dump=%s", dump_event(event))
             logger.info("callback TOOL_EXECUTION payload=%s", payload)
-            await self._emit("tool", payload)
+            await self._emit(AgentEventType.TOOL_EXECUTION.value, payload)
 
         self._registered = True
         logger.info("RelayClient 事件处理器注册完成")

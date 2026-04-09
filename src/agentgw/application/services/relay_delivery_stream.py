@@ -88,7 +88,7 @@ class RelayDeliveryStreamService:
             await self._delivery_repository.save(delivery)
             return
 
-        if event in {"agent_call", "agent_text", "tool"} and delivery.status is DeliveryStatus.DISPATCHED:
+        if event in {"agent_call", "agent_text", "tool_execution", "tool"} and delivery.status is DeliveryStatus.DISPATCHED:
             delivery.mark_replying()
             await self._delivery_repository.save(delivery)
 
