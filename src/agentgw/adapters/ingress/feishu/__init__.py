@@ -1,0 +1,1 @@
+"""Feishu ingress adapter placeholder."""
