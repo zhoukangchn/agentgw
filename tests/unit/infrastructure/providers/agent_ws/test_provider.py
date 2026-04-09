@@ -331,6 +331,63 @@ async def test_send_message_rejects_invalid_response_frames(response_payload) ->
 
 
 @pytest.mark.asyncio
+async def test_send_message_dispatches_unsolicited_events_to_handler() -> None:
+    request = SendMessageRequest(
+        request_id="req-1",
+        channel_type="wecom",
+        tenant_id="tenant-1",
+        message_id="msg-1",
+        sender_id="user-1",
+        conversation_id="conv-1",
+        content="hello",
+    )
+    events: list[dict[str, object]] = []
+    event_seen = asyncio.Event()
+
+    async def event_handler(payload) -> None:
+        events.append(payload)
+        event_seen.set()
+
+    factory = FakeConnectFactory(
+        [
+            json.dumps(
+                {
+                    "type": "agent_event",
+                    "scene": "push",
+                    "content": "side-channel",
+                }
+            ),
+            json.dumps(
+                {
+                    "type": "send_message_result",
+                    "request_id": "req-1",
+                    "provider_message_id": "agent-1",
+                    "content": "reply-1",
+                }
+            ),
+        ]
+    )
+
+    provider = WebSocketAgentProvider(ws_url="ws://agent", timeout_seconds=7, connect_factory=factory, event_handler=event_handler)
+
+    response = await provider.send_message(request)
+    await asyncio.wait_for(event_seen.wait(), timeout=1)
+
+    assert response.provider_message_id == "agent-1"
+    assert response.content == "reply-1"
+    assert events == [
+        {
+            "type": "agent_event",
+            "scene": "push",
+            "content": "side-channel",
+        }
+    ]
+    assert factory.calls == 1
+
+    await provider._close_connection()
+
+
+@pytest.mark.asyncio
 async def test_send_message_uses_default_websockets_connector(monkeypatch) -> None:
     request = SendMessageRequest(
         request_id="req-1",
