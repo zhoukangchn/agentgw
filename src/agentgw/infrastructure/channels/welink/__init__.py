@@ -1,1 +1,0 @@
-"""WeLink channel mock adapter."""

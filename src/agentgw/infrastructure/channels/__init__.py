@@ -1,1 +1,0 @@
-"""Channel infrastructure adapters."""
