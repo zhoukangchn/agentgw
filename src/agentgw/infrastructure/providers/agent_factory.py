@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from agentgw.domain.agent.entities import AgentEndpoint
+from agentgw.infrastructure.providers.agent_sdk.loader import load_relay_sdk_client
 from agentgw.infrastructure.providers.agent_sdk.session import RelaySdkAgentSession
 from agentgw.infrastructure.providers.agent_ws.provider import WebSocketAgentProvider
 
@@ -28,7 +29,11 @@ def build_agent_transport(
 
     if endpoint.endpoint_type == "relay_sdk":
         if client is None:
-            raise ValueError("relay_sdk endpoints require a client instance")
+            client = load_relay_sdk_client(
+                endpoint.base_url,
+                module_path=str(endpoint.auth_config.get("relay_sdk_module", "your_sdk")),
+                client_class_name=str(endpoint.auth_config.get("relay_sdk_client_class", "RelayClient")),
+            )
         return RelaySdkAgentSession(client=client, session_id=endpoint.endpoint_id)
 
     raise ValueError(f"unsupported endpoint_type: {endpoint.endpoint_type}")

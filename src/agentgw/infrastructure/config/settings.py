@@ -16,5 +16,8 @@ class Settings(BaseSettings):
     wecom_access_token: str | None = None
     wecom_audit_proxy: str | None = None
     wecom_follow_user_ids: str = ""
+    relay_sdk_module: str = "your_sdk"
+    relay_sdk_client_class: str = "RelayClient"
+    relay_sdk_event_enum: str = "EventType"
 
     model_config = SettingsConfigDict(env_prefix="AGENTGW_", extra="ignore")

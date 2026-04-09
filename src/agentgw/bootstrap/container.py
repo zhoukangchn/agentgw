@@ -27,6 +27,7 @@ from agentgw.infrastructure.workers.dispatcher import DeliveryDispatcher
 from agentgw.infrastructure.workers.scheduler import JobDefinition, Scheduler
 from agentgw.interfaces.http.controllers.admin_sync import router as admin_sync_router
 from agentgw.interfaces.http.controllers.health import router as health_router
+from agentgw.interfaces.http.controllers.relay_chat import router as relay_chat_router
 
 
 @dataclass
@@ -133,4 +134,5 @@ def build_app(container: Container | None = None) -> FastAPI:
     app.state.container = container
     app.include_router(health_router)
     app.include_router(admin_sync_router)
+    app.include_router(relay_chat_router)
     return app
