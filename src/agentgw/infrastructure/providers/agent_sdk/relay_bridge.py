@@ -5,7 +5,7 @@ import inspect
 import json
 import logging
 from contextlib import suppress
-from typing import Any, AsyncGenerator, Callable
+from typing import Any, AsyncGenerator, Awaitable, Callable
 
 from fastapi import Request
 
@@ -54,6 +54,7 @@ class RelaySdkBridge:
         client: Any | None = None,
         client_factory: Callable[[str], Any] | None = None,
         event_type: Any | None = None,
+        event_sink: Callable[[str, dict[str, Any]], Awaitable[None] | None] | None = None,
     ) -> None:
         if client is None and client_factory is None:
             raise ValueError("client or client_factory is required")
@@ -64,12 +65,17 @@ class RelaySdkBridge:
         self.timeout_seconds = timeout_seconds
         self.client = client or client_factory(ws_url)
         self.event_type = event_type
+        self.event_sink = event_sink
         self.queue: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue()
         self._registered = False
         self._register_handlers()
 
     async def _emit(self, event: str, data: dict[str, Any]) -> None:
         logger.info("emit event=%s data=%s", event, data)
+        if self.event_sink is not None:
+            result = self.event_sink(event, data)
+            if inspect.isawaitable(result):
+                await result
         await self.queue.put((event, data))
 
     def _register_handlers(self) -> None:

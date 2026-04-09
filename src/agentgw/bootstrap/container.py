@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from fastapi import FastAPI
 
 from agentgw.application.services.process_delivery import ProcessDeliveryService
+from agentgw.application.services.relay_delivery_stream import RelayDeliveryStreamService
 from agentgw.application.services.sync_contacts import SyncContactsService
 from agentgw.application.services.sync_messages import SyncMessagesService
 from agentgw.infrastructure.channels.feishu.client import FeishuClient
@@ -28,6 +29,7 @@ from agentgw.infrastructure.workers.scheduler import JobDefinition, Scheduler
 from agentgw.interfaces.http.controllers.admin_sync import router as admin_sync_router
 from agentgw.interfaces.http.controllers.health import router as health_router
 from agentgw.interfaces.http.controllers.relay_chat import router as relay_chat_router
+from agentgw.interfaces.http.controllers.relay_delivery import router as relay_delivery_router
 
 
 @dataclass
@@ -37,6 +39,9 @@ class Container:
     delivery_dispatcher: DeliveryDispatcher
     sync_message_services: dict[str, SyncMessagesService]
     sync_contact_services: dict[str, SyncContactsService]
+    delivery_repository: SqlAlchemyDeliveryRepository
+    message_repository: SqlAlchemyMessageRepository
+    relay_delivery_service: RelayDeliveryStreamService
 
     async def trigger_message_sync(self, account_id: str, channel_type: str | None = None) -> None:
         await self._run_sync(account_id, channel_type, self.sync_message_services)
@@ -119,12 +124,20 @@ def build_container(settings: Settings | None = None) -> Container:
             ),
         ]
     )
+    relay_delivery_service = RelayDeliveryStreamService(
+        settings=settings,
+        message_repository=message_repository,
+        delivery_repository=delivery_repository,
+    )
     return Container(
         settings=settings,
         scheduler=scheduler,
         delivery_dispatcher=delivery_dispatcher,
         sync_message_services=sync_message_services,
         sync_contact_services=sync_contact_services,
+        delivery_repository=delivery_repository,
+        message_repository=message_repository,
+        relay_delivery_service=relay_delivery_service,
     )
 
 
@@ -135,4 +148,5 @@ def build_app(container: Container | None = None) -> FastAPI:
     app.include_router(health_router)
     app.include_router(admin_sync_router)
     app.include_router(relay_chat_router)
+    app.include_router(relay_delivery_router)
     return app
