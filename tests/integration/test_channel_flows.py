@@ -3,6 +3,8 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from agentgw.bootstrap.container import build_app, build_container
+from agentgw.infrastructure.config.settings import Settings
 from tests.helpers import make_app
 
 
@@ -104,3 +106,97 @@ async def test_source_account_mismatch_returns_400(tmp_path, ws_rpc_server, sdk_
 
     assert response.status_code == 400
     assert "source account mismatch" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_feishu_to_welink_group_http_mode_posts_to_welink_api(
+    tmp_path,
+    ws_rpc_server,
+    sdk_session_server,
+    welink_http_server,
+) -> None:
+    settings = Settings(
+        database_url=f"sqlite+pysqlite:///{tmp_path / 'agentgw.db'}",
+        ws_agent_url=ws_rpc_server["url"],
+        sdk_agent_url=sdk_session_server["url"],
+        sdk_module="agentgw.dev.mock_relay_sdk",
+        welink_adapter_mode="http",
+        welink_base_url=welink_http_server["url"],
+        welink_access_token="test-token",
+    )
+    app = build_app(build_container(settings))
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/ingress/events",
+            json={
+                "channel_id": "feishu_to_welink_group",
+                "source_account_id": "acc-feishu-default",
+                "source_conversation_id": "feishu-chat-http",
+                "sender_id": "feishu-user-http",
+                "content": "飞书消息走真实welink adapter",
+            },
+        )
+        egress = await client.get("/egress/welink")
+
+    assert response.status_code == 200
+    assert response.json()["egress_count"] == 1
+    assert egress.json()["group_messages"] == [
+        {"group_id": "welink-group-demo", "content": "ws-reply:飞书消息走真实welink adapter"}
+    ]
+    assert len(welink_http_server["requests"]) == 1
+    request = welink_http_server["requests"][0]
+    assert request["path"] == "/groups/welink-group-demo/messages"
+    assert request["body"] == {"msg_type": "text", "content": "ws-reply:飞书消息走真实welink adapter"}
+    assert request["headers"]["Authorization"] == "Bearer test-token"
+
+
+@pytest.mark.asyncio
+async def test_welink_dm_twoway_http_mode_posts_back_to_source_conversation(
+    tmp_path,
+    ws_rpc_server,
+    sdk_session_server,
+    welink_http_server,
+) -> None:
+    settings = Settings(
+        database_url=f"sqlite+pysqlite:///{tmp_path / 'agentgw.db'}",
+        ws_agent_url=ws_rpc_server["url"],
+        sdk_agent_url=sdk_session_server["url"],
+        sdk_module="agentgw.dev.mock_relay_sdk",
+        welink_adapter_mode="http",
+        welink_base_url=welink_http_server["url"],
+        welink_access_token="test-token",
+    )
+    app = build_app(build_container(settings))
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/ingress/events",
+            json={
+                "channel_id": "welink_dm_twoway",
+                "source_account_id": "acc-welink-default",
+                "source_conversation_id": "welink-dm-http-1",
+                "sender_id": "welink-user-http",
+                "content": "WeLink 私聊真实http adapter",
+            },
+        )
+        egress = await client.get("/egress/welink")
+
+    assert response.status_code == 200
+    assert response.json()["egress_count"] == 1
+    assert egress.json()["private_messages"] == [
+        {
+            "conversation_id": "welink-dm-http-1",
+            "content": "relay-part-1 relay-part-2:WeLink 私聊真实http adapter",
+        }
+    ]
+    assert len(welink_http_server["requests"]) == 1
+    request = welink_http_server["requests"][0]
+    assert request["path"] == "/dms/welink-dm-http-1/messages"
+    assert request["body"] == {
+        "msg_type": "text",
+        "content": "relay-part-1 relay-part-2:WeLink 私聊真实http adapter",
+    }
+    assert request["headers"]["Authorization"] == "Bearer test-token"

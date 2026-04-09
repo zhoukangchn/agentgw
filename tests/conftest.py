@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
 from typing import Any
 
 import pytest_asyncio
@@ -35,6 +37,41 @@ async def ws_rpc_server() -> AsyncIterator[dict[str, Any]]:
     finally:
         server.close()
         await server.wait_closed()
+
+
+@pytest_asyncio.fixture
+async def welink_http_server() -> AsyncIterator[dict[str, Any]]:
+    requests: list[dict[str, Any]] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802
+            content_length = int(self.headers.get("Content-Length", "0"))
+            body = self.rfile.read(content_length)
+            requests.append(
+                {
+                    "path": self.path,
+                    "headers": dict(self.headers.items()),
+                    "body": json.loads(body.decode("utf-8")),
+                }
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"ok": true}')
+
+        def log_message(self, format: str, *args: Any) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield {"url": f"http://127.0.0.1:{port}", "requests": requests}
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=1)
 
 
 @pytest_asyncio.fixture
